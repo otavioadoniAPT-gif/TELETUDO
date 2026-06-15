@@ -4,7 +4,7 @@ import { experts as expertsApi, messages as messagesApi } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
 import Avatar from '../components/Avatar.jsx';
 import Spinner from '../components/Spinner.jsx';
-import { CONTENT_TYPE_LABELS, toUtcSqlite } from '../utils.js';
+import { CONTENT_TYPE_LABELS } from '../utils.js';
 
 const TYPES = ['text', 'photo', 'video', 'document', 'link', 'sticker'];
 const FILE_TYPES = { photo: 'image/*', video: 'video/*', document: '*' };
@@ -140,8 +140,9 @@ export default function ScheduleNew() {
     fd.append('send_now', isNow ? 'true' : 'false');
     fd.append('recurrence', recurrence);
     if (recurrence === 'daily' || !isNow) {
-      // Converte o horário local do datetime-local para UTC no formato do SQLite
-      fd.append('scheduled_at', toUtcSqlite(scheduledAt));
+      // Envia o valor cru do datetime-local (horário local); a conversão
+      // para UTC é feita uma única vez no api.js (toIso).
+      fd.append('scheduled_at', scheduledAt);
     }
 
     setSubmitting(true);
