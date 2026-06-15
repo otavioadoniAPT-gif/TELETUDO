@@ -24,6 +24,10 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 const TG = (token: string, method: string) =>
   `https://api.telegram.org/bot${token}/${method}`;
 
+// Pausa entre envios para suavizar rajadas (anti-flood preventivo).
+const PACE_MS = 350;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 function parseModeOptions(mode?: string) {
   if (mode === "Markdown") return { parse_mode: "Markdown" };
   if (mode === "HTML") return { parse_mode: "HTML" };
@@ -38,13 +42,26 @@ function escapeHtml(str = "") {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-async function callTelegram(token: string, method: string, payload: Record<string, unknown>) {
+async function callTelegram(
+  token: string,
+  method: string,
+  payload: Record<string, unknown>,
+  attempt = 0,
+): Promise<any> {
   const res = await fetch(TG(token, method), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const body = await res.json().catch(() => ({}));
+
+  // Telegram pediu para esperar (flood control): respeita retry_after e tenta de novo.
+  const retryAfter = body?.parameters?.retry_after;
+  if ((res.status === 429 || retryAfter) && attempt < 3) {
+    await sleep(((retryAfter ?? 1) * 1000) + 250);
+    return callTelegram(token, method, payload, attempt + 1);
+  }
+
   if (!res.ok || body.ok === false) {
     throw new Error(body.description || `Telegram respondeu ${res.status}`);
   }
@@ -114,12 +131,14 @@ async function processMessage(message: any) {
   if (chats.length === 0) throw new Error("Nenhum chat de destino definido para a mensagem.");
 
   const errors: string[] = [];
-  for (const chatId of chats) {
+  for (let i = 0; i < chats.length; i++) {
+    const chatId = chats[i];
     try {
       await dispatchToChat(expert, message, chatId);
     } catch (err) {
       errors.push(`Chat ${chatId}: ${err instanceof Error ? err.message : String(err)}`);
     }
+    if (i < chats.length - 1) await sleep(PACE_MS); // suaviza envios ao mesmo expert
   }
   if (errors.length > 0) throw new Error(errors.join(" | "));
 }
@@ -174,7 +193,11 @@ async function processDueMessages() {
     .lte("scheduled_at", new Date().toISOString())
     .order("scheduled_at", { ascending: true });
   const results = [];
-  for (const m of due ?? []) results.push(await sendOne(m));
+  const list = due ?? [];
+  for (let i = 0; i < list.length; i++) {
+    results.push(await sendOne(list[i]));
+    if (i < list.length - 1) await sleep(PACE_MS); // suaviza entre mensagens diferentes
+  }
   return results;
 }
 
