@@ -223,6 +223,7 @@ export const messages = {
     const patch = {};
     if (payload.scheduled_at !== undefined) patch.scheduled_at = toIso(payload.scheduled_at);
     if (payload.status !== undefined) patch.status = payload.status;
+    if (payload.error_message !== undefined) patch.error_message = payload.error_message;
     const { data, error } = await supabase
       .from('scheduled_messages').update(patch).eq('id', id).select(SELECT_WITH_EXPERT).single();
     check(error);
@@ -236,8 +237,8 @@ export const messages = {
     const { data: message, error: getErr } = await supabase
       .from('scheduled_messages').select('*').eq('id', id).single();
     check(getErr, 'Mensagem não encontrada.');
-    if (message.status !== 'pending') {
-      throw new Error('Apenas agendamentos pendentes podem ser cancelados.');
+    if (message.status === 'sent') {
+      throw new Error('Mensagens já enviadas não podem ser excluídas.');
     }
     if (message.file_path) {
       const { count } = await supabase

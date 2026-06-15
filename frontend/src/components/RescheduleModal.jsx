@@ -9,6 +9,7 @@ export default function RescheduleModal({ message, onClose, onSaved }) {
   const toast = useToast();
   const [value, setValue] = useState(toLocalInput(message.scheduled_at));
   const [busy, setBusy] = useState(false);
+  const isFailed = message.status === 'failed';
 
   async function save() {
     if (!value) {
@@ -17,8 +18,14 @@ export default function RescheduleModal({ message, onClose, onSaved }) {
     }
     setBusy(true);
     try {
-      await messagesApi.update(message.id, { scheduled_at: value });
-      toast.success('Agendamento atualizado.');
+      const payload = { scheduled_at: value };
+      // Reagendar uma falha = reenviar: volta para pendente e limpa o erro.
+      if (isFailed) {
+        payload.status = 'pending';
+        payload.error_message = null;
+      }
+      await messagesApi.update(message.id, payload);
+      toast.success(isFailed ? 'Mensagem reagendada para reenvio.' : 'Agendamento atualizado.');
       onSaved && onSaved();
       onClose();
     } catch (err) {
@@ -29,7 +36,12 @@ export default function RescheduleModal({ message, onClose, onSaved }) {
   }
 
   return (
-    <Modal title="Reagendar mensagem" onClose={onClose}>
+    <Modal title={isFailed ? 'Reenviar mensagem' : 'Reagendar mensagem'} onClose={onClose}>
+      {isFailed && (
+        <p className="muted" style={{ marginTop: 0 }}>
+          Esta mensagem falhou. Ao salvar, ela volta para a fila e será reenviada no novo horário.
+        </p>
+      )}
       <div className="form-group">
         <label>Nova data e hora</label>
         <input

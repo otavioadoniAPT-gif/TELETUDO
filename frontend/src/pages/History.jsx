@@ -186,17 +186,19 @@ export default function History() {
                     <Badge status={m.status} />
                   </td>
                   <td>
-                    {m.status === 'pending' ? (
+                    {m.status === 'sent' ? (
+                      <span className="muted">—</span>
+                    ) : (
                       <div className="row-actions">
                         <button
                           className="btn btn-sm"
-                          title="Reagendar"
+                          title={m.status === 'failed' ? 'Reenviar' : 'Reagendar'}
                           onClick={(e) => {
                             e.stopPropagation();
                             setReschedule(m);
                           }}
                         >
-                          ✏️ Reagendar
+                          {m.status === 'failed' ? '🔄 Reenviar' : '✏️ Reagendar'}
                         </button>
                         <button
                           className="btn btn-sm btn-danger"
@@ -206,8 +208,6 @@ export default function History() {
                           🗑️
                         </button>
                       </div>
-                    ) : (
-                      <span className="muted">—</span>
                     )}
                   </td>
                 </tr>
