@@ -1,0 +1,24 @@
+# Dependências
+node_modules/
+**/node_modules/
+
+# Build do frontend
+frontend/dist/
+
+# Banco de dados e uploads (dados locais)
+backend/data/
+backend/uploads/
+*.sqlite
+*.sqlite-*
+
+# Variáveis de ambiente / segredos
+.env
+**/.env
+!**/.env.example
+
+# Sistema
+.DS_Store
+*.log
+
+# Preview / launch local
+.claude/launch.json
