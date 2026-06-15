@@ -1,0 +1,17 @@
+# Deploy do frontend TeleTudo no Netlify.
+# O backend não existe mais — tudo roda no Supabase.
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# SPA: toda rota cai no index.html (React Router cuida do resto)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Variáveis necessárias no build (defina no painel do Netlify, NÃO aqui):
+#   VITE_SUPABASE_URL
+#   VITE_SUPABASE_ANON_KEY

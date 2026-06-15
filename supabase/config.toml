@@ -1,0 +1,9 @@
+# Config local do Supabase CLI para o projeto TeleTudo.
+project_id = "gcvrwccjoddyuorksbwa"
+
+# A função "telegram" faz sua própria autenticação:
+#  - ação "cron"      -> valida o header x-cron-secret
+#  - "send-now"/"test" -> valida o JWT do usuário manualmente
+# Por isso desligamos a verificação automática de JWT do gateway.
+[functions.telegram]
+verify_jwt = false

@@ -14,11 +14,23 @@ backend/uploads/
 # Variáveis de ambiente / segredos
 .env
 **/.env
+.env.local
+**/.env.local
 !**/.env.example
 
 # Sistema
 .DS_Store
 *.log
 
+# Pacote de deploy gerado para o Netlify
+*.zip
+
 # Preview / launch local
 .claude/launch.json
+
+# Temporários do Supabase CLI
+supabase/.temp/
+supabase/.branches/
+
+# Configuração local do Claude Code (contém comandos/segredos locais)
+.claude/settings.local.json
