@@ -87,6 +87,7 @@ async function dispatchToChat(expert: any, message: any, chatId: string) {
       return callTelegram(token, "sendMessage", {
         chat_id: chatId,
         text: message.text_content || "",
+        disable_web_page_preview: true,
         ...parseModeOptions(mode),
       });
     case "sticker":
@@ -114,6 +115,7 @@ async function dispatchToChat(expert: any, message: any, chatId: string) {
       parts.push(`<a href="${escapeHtml(message.link_url)}">${escapeHtml(message.link_url)}</a>`);
       return callTelegram(token, "sendMessage", {
         chat_id: chatId, text: parts.join("\n\n"), parse_mode: "HTML",
+        disable_web_page_preview: true,
       });
     }
     default:
