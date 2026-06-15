@@ -1094,3 +1094,13 @@ textarea.form-control {
 .panel .section-head {
   margin-top: 0;
 }
+
+/* Botões de ação dentro das tabelas (reagendar / excluir) */
+.row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.row-actions .btn-sm {
+  white-space: nowrap;
+}

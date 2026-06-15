@@ -40,6 +40,17 @@ export function toUtcSqlite(localValue) {
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+// Converte um timestamp (ISO ou formato SQLite) para o valor aceito por
+// <input type="datetime-local"> ("YYYY-MM-DDTHH:MM"), no horário LOCAL.
+export function toLocalInput(value) {
+  if (!value) return '';
+  const iso = value.includes('T') ? value : value.replace(' ', 'T') + 'Z';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function contentPreview(msg) {
   if (!msg) return '';
   if (msg.content_type === 'link') return msg.link_url || msg.link_preview_title || 'Link';

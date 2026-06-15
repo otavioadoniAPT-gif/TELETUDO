@@ -1,25 +1,42 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { dashboard } from '../api.js';
+import { dashboard, messages as messagesApi } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
 import Avatar from '../components/Avatar.jsx';
 import Badge from '../components/Badge.jsx';
 import Spinner from '../components/Spinner.jsx';
+import RescheduleModal from '../components/RescheduleModal.jsx';
 import { CONTENT_TYPE_LABELS, formatDateTime } from '../utils.js';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reschedule, setReschedule] = useState(null);
   const toast = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
+  function load() {
     dashboard
       .stats()
       .then(setStats)
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
   }, []); // eslint-disable-line
+
+  async function handleDelete(m) {
+    if (!confirm('Excluir este agendamento? Esta ação não pode ser desfeita.')) return;
+    try {
+      await messagesApi.remove(m.id);
+      toast.success('Agendamento excluído.');
+      load();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  }
 
   if (loading) return <Spinner />;
   if (!stats) return <div className="empty-state">Não foi possível carregar os dados.</div>;
@@ -84,6 +101,7 @@ export default function Dashboard() {
                 <th>Tipo</th>
                 <th>Data/Hora</th>
                 <th>Status</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -100,12 +118,38 @@ export default function Dashboard() {
                   <td>
                     <Badge status={m.status} />
                   </td>
+                  <td>
+                    <div className="row-actions">
+                      <button
+                        className="btn btn-sm"
+                        title="Reagendar"
+                        onClick={() => setReschedule(m)}
+                      >
+                        ✏️ Reagendar
+                      </button>
+                      <button
+                        className="btn btn-sm btn-danger"
+                        title="Excluir"
+                        onClick={() => handleDelete(m)}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {reschedule && (
+        <RescheduleModal
+          message={reschedule}
+          onClose={() => setReschedule(null)}
+          onSaved={load}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Avatar from '../components/Avatar.jsx';
 import Badge from '../components/Badge.jsx';
 import Spinner from '../components/Spinner.jsx';
 import Modal from '../components/Modal.jsx';
+import RescheduleModal from '../components/RescheduleModal.jsx';
 import { CONTENT_TYPE_LABELS, formatDateTime, contentPreview, truncate } from '../utils.js';
 
 export default function History() {
@@ -14,6 +15,19 @@ export default function History() {
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
   const [errorModal, setErrorModal] = useState(null);
+  const [reschedule, setReschedule] = useState(null);
+
+  async function handleDelete(m, e) {
+    e.stopPropagation();
+    if (!confirm('Excluir este agendamento? Esta ação não pode ser desfeita.')) return;
+    try {
+      await messagesApi.remove(m.id);
+      toast.success('Agendamento excluído.');
+      load();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  }
 
   const [filters, setFilters] = useState({
     expert_id: '',
@@ -137,6 +151,7 @@ export default function History() {
                 <th>Agendada</th>
                 <th>Enviada</th>
                 <th>Status</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -169,6 +184,31 @@ export default function History() {
                   <td>{formatDateTime(m.sent_at)}</td>
                   <td>
                     <Badge status={m.status} />
+                  </td>
+                  <td>
+                    {m.status === 'pending' ? (
+                      <div className="row-actions">
+                        <button
+                          className="btn btn-sm"
+                          title="Reagendar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReschedule(m);
+                          }}
+                        >
+                          ✏️ Reagendar
+                        </button>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          title="Excluir"
+                          onClick={(e) => handleDelete(m, e)}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -215,6 +255,14 @@ export default function History() {
           </p>
           <div className="error-box">{errorModal.error_message || 'Erro não registrado.'}</div>
         </Modal>
+      )}
+
+      {reschedule && (
+        <RescheduleModal
+          message={reschedule}
+          onClose={() => setReschedule(null)}
+          onSaved={load}
+        />
       )}
     </div>
   );

@@ -219,6 +219,15 @@ export const messages = {
     }
     return this.get(created.id);
   },
+  async update(id, payload) {
+    const patch = {};
+    if (payload.scheduled_at !== undefined) patch.scheduled_at = toIso(payload.scheduled_at);
+    if (payload.status !== undefined) patch.status = payload.status;
+    const { data, error } = await supabase
+      .from('scheduled_messages').update(patch).eq('id', id).select(SELECT_WITH_EXPERT).single();
+    check(error);
+    return data;
+  },
   async sendNow(id) {
     await invokeSend(id);
     return this.get(id);
