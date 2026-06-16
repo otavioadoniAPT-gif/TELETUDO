@@ -78,7 +78,42 @@ function resolveTargetChats(message: any, expert: any): string[] {
   return chats;
 }
 
-async function dispatchToChat(expert: any, message: any, chatId: string) {
+// Envio a partir de um Template: preserva custom emojis animados via
+// entities / caption_entities. NUNCA usa parse_mode junto.
+async function dispatchTemplate(token: string, chatId: string, tpl: any) {
+  const entities = Array.isArray(tpl.entities_json) ? tpl.entities_json : [];
+  const caption = tpl.text_content || "";
+  const hasCaption = caption.length > 0;
+  switch (tpl.content_type) {
+    case "text":
+      return callTelegram(token, "sendMessage", {
+        chat_id: chatId,
+        text: caption,
+        entities,
+        disable_web_page_preview: true,
+      });
+    case "photo":
+      return callTelegram(token, "sendPhoto", {
+        chat_id: chatId, photo: publicUrl(tpl.file_path),
+        ...(hasCaption ? { caption, caption_entities: entities } : {}),
+      });
+    case "video":
+      return callTelegram(token, "sendVideo", {
+        chat_id: chatId, video: publicUrl(tpl.file_path),
+        ...(hasCaption ? { caption, caption_entities: entities } : {}),
+      });
+    case "document":
+      return callTelegram(token, "sendDocument", {
+        chat_id: chatId, document: publicUrl(tpl.file_path),
+        ...(hasCaption ? { caption, caption_entities: entities } : {}),
+      });
+    default:
+      throw new Error(`Tipo de template desconhecido: ${tpl.content_type}`);
+  }
+}
+
+async function dispatchToChat(expert: any, message: any, chatId: string, tpl?: any) {
+  if (tpl) return dispatchTemplate(expert.bot_token, chatId, tpl);
   const token = expert.bot_token;
   const mode = message.parse_mode || "none";
   const caption = message.text_content || "";
@@ -129,6 +164,15 @@ async function processMessage(message: any) {
   if (!expert) throw new Error("Expert não encontrado para a mensagem.");
   if (!expert.bot_token) throw new Error("Expert sem bot_token configurado.");
 
+  // Se a mensagem usa um template, carrega-o (fonte única do conteúdo).
+  let tpl: any = null;
+  if (message.template_id) {
+    const { data } = await admin
+      .from("message_templates").select("*").eq("id", message.template_id).single();
+    if (!data) throw new Error("Template não encontrado.");
+    tpl = data;
+  }
+
   const chats = resolveTargetChats(message, expert);
   if (chats.length === 0) throw new Error("Nenhum chat de destino definido para a mensagem.");
 
@@ -136,7 +180,7 @@ async function processMessage(message: any) {
   for (let i = 0; i < chats.length; i++) {
     const chatId = chats[i];
     try {
-      await dispatchToChat(expert, message, chatId);
+      await dispatchToChat(expert, message, chatId, tpl);
     } catch (err) {
       errors.push(`Chat ${chatId}: ${err instanceof Error ? err.message : String(err)}`);
     }

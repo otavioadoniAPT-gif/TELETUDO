@@ -90,3 +90,45 @@ Crie o primeiro usuário em **Authentication → Users → Add user**
 
 O backend Node em `backend/` não é mais necessário em produção — pode ficar
 no repositório como referência ou ser removido.
+
+---
+
+## 7. Templates de Mensagem (captura com emojis animados)
+
+Permite capturar mensagens prontas do Telegram (com **custom emojis animados**,
+formatação e mídia) e reutilizá-las no agendamento. Como cada expert usa um bot
+diferente, a mídia é guardada no Storage e reenviada por URL (funciona em qualquer
+bot); os emojis animados são preservados via `entities`/`caption_entities`.
+
+> **Requisito:** a conta dona precisa ser **Telegram Premium** e os custom emojis
+> devem vir de pacotes acessíveis (criados via @Stickers, link `t.me/addemoji`).
+
+### 7.1 Criar o bot de captura
+1. No Telegram, fale com **@BotFather** → `/newbot` → escolha nome e username.
+2. Copie o **token** do bot (formato `123456:ABC...`).
+
+### 7.2 Definir os secrets e publicar
+```bash
+supabase secrets set CAPTURE_BOT_TOKEN="SEU_TOKEN_DO_BOT_DE_CAPTURA" --project-ref gcvrwccjoddyuorksbwa
+# CAPTURE_WEBHOOK_SECRET já foi definido no deploy; se precisar trocar:
+# supabase secrets set CAPTURE_WEBHOOK_SECRET="um-segredo-forte" --project-ref gcvrwccjoddyuorksbwa
+supabase functions deploy capture --project-ref gcvrwccjoddyuorksbwa
+```
+
+### 7.3 Registrar o webhook no Telegram
+Aponte o bot de captura para a Edge Function (use o MESMO valor de `CAPTURE_WEBHOOK_SECRET`):
+```bash
+curl "https://api.telegram.org/bot<CAPTURE_BOT_TOKEN>/setWebhook?url=https://gcvrwccjoddyuorksbwa.supabase.co/functions/v1/capture&secret_token=<CAPTURE_WEBHOOK_SECRET>"
+```
+
+### 7.4 Usar
+1. No frontend, defina `VITE_CAPTURE_BOT_USERNAME=@SeuBotDeCaptura` (aparece nas instruções).
+2. No Telegram, **encaminhe** a mensagem pronta para o bot de captura.
+3. No painel → aba **Templates** → ela aparece em *Rascunhos*. Dê um nome e salve.
+4. Em **Novo Agendamento** (ou botão "Usar" do template), escolha **um ou vários experts**
+   e agende. Cada expert reenvia pelo seu bot, mantendo os emojis animados.
+
+**Observação sobre mídia:** por usarem bots diferentes, todo arquivo é reenviado a
+partir da cópia no Storage (não por `file_id`) — um pouco mais lento, porém confiável.
+Se um custom emoji estiver inacessível ou a mídia não puder ser lida, a mensagem é
+marcada como **falha** no Histórico com o erro claro.

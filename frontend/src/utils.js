@@ -59,6 +59,26 @@ export function contentPreview(msg) {
   return msg.file_name || msg.text_content || CONTENT_TYPE_LABELS[msg.content_type] || '';
 }
 
+// Quebra um texto em segmentos marcando os custom emojis (que o painel web
+// não renderiza). Offsets vêm em UTF-16, que é exatamente como o JS indexa
+// strings — então slice() funciona direto. Retorna [{type:'text'|'emoji', value}].
+export function previewSegments(text = '', entities = []) {
+  const ce = (entities || [])
+    .filter((e) => e.type === 'custom_emoji')
+    .sort((a, b) => a.offset - b.offset);
+  if (!text) return [];
+  if (!ce.length) return [{ type: 'text', value: text }];
+  const segs = [];
+  let cur = 0;
+  for (const e of ce) {
+    if (e.offset > cur) segs.push({ type: 'text', value: text.slice(cur, e.offset) });
+    segs.push({ type: 'emoji', value: text.slice(e.offset, e.offset + e.length) });
+    cur = e.offset + e.length;
+  }
+  if (cur < text.length) segs.push({ type: 'text', value: text.slice(cur) });
+  return segs;
+}
+
 export function truncate(str = '', n = 60) {
   return str.length > n ? str.slice(0, n) + '…' : str;
 }

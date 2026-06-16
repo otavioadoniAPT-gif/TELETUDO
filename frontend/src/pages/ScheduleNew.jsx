@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { experts as expertsApi, messages as messagesApi } from '../api.js';
+import { experts as expertsApi, messages as messagesApi, templates as templatesApi } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
 import Avatar from '../components/Avatar.jsx';
 import Spinner from '../components/Spinner.jsx';
+import EntityPreview from '../components/EntityPreview.jsx';
 import { CONTENT_TYPE_LABELS } from '../utils.js';
 
 const TYPES = ['text', 'photo', 'video', 'document', 'link', 'sticker'];
@@ -38,6 +39,11 @@ export default function ScheduleNew() {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  // Modo template (vem de /templates → "Usar")
+  const templateId = searchParams.get('templateId');
+  const [template, setTemplate] = useState(null);
+  const [selectedExperts, setSelectedExperts] = useState([]);
+
   useEffect(() => {
     expertsApi
       .list()
@@ -45,6 +51,73 @@ export default function ScheduleNew() {
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line
+
+  useEffect(() => {
+    if (!templateId) return;
+    templatesApi.get(templateId).then(setTemplate).catch((err) => toast.error(err.message));
+  }, [templateId]); // eslint-disable-line
+
+  function toggleExpert(id) {
+    setSelectedExperts((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  // Resolve os chats de um expert: chats ativos + chat_id padrão.
+  async function resolveExpertChats(expert) {
+    let chatIds = [];
+    try {
+      const cs = await expertsApi.chats(expert.id);
+      chatIds = cs.filter((c) => c.active).map((c) => c.chat_id);
+    } catch (_) {
+      /* sem chats cadastrados */
+    }
+    if (expert.chat_id && !chatIds.includes(expert.chat_id)) chatIds.push(expert.chat_id);
+    return chatIds;
+  }
+
+  async function submitTemplate(now) {
+    const willNow = now === true;
+    const e = {};
+    if (selectedExperts.length === 0) e.expert = 'Selecione ao menos um expert.';
+    if (recurrence === 'daily' && !scheduledAt)
+      e.scheduled = 'Para repetir diariamente, defina a data/hora do primeiro envio.';
+    else if (!willNow && !sendNow && !scheduledAt)
+      e.scheduled = 'Defina a data/hora ou marque "Enviar agora".';
+    setErrors(e);
+    if (Object.keys(e).length) return;
+
+    const isNow = recurrence !== 'daily' && (willNow || sendNow);
+    setSubmitting(true);
+    try {
+      let ok = 0;
+      for (const eid of selectedExperts) {
+        const exp = expertsList.find((x) => String(x.id) === String(eid));
+        const chatIds = await resolveExpertChats(exp);
+        if (chatIds.length === 0) {
+          toast.error(`${exp?.name || 'Expert'}: sem chats vinculados — ignorado.`);
+          continue;
+        }
+        const fd = new FormData();
+        fd.append('expert_id', eid);
+        fd.append('template_id', templateId);
+        fd.append('target_chats', JSON.stringify(chatIds));
+        fd.append('send_now', isNow ? 'true' : 'false');
+        fd.append('recurrence', recurrence);
+        if (recurrence === 'daily' || !isNow) fd.append('scheduled_at', scheduledAt);
+        await messagesApi.create(fd);
+        ok++;
+      }
+      if (ok > 0) {
+        toast.success(`Template agendado para ${ok} expert(s)!`);
+        navigate('/history');
+      }
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   // Carrega chats ao trocar de expert
   useEffect(() => {
@@ -164,6 +237,123 @@ export default function ScheduleNew() {
   }
 
   if (loading) return <Spinner />;
+
+  // ---------- Modo template ----------
+  if (templateId) {
+    return (
+      <div>
+        <div className="page-header">
+          <div>
+            <h1>Agendar com Template</h1>
+            <p className="page-subtitle">Reutiliza uma mensagem capturada, preservando os emojis animados</p>
+          </div>
+        </div>
+
+        <div className="card" style={{ maxWidth: 720 }}>
+          {/* Preview do template */}
+          <div className="step">
+            <div className="step-title">Template selecionado</div>
+            {!template ? (
+              <Spinner />
+            ) : (
+              <div className="template-card" style={{ marginTop: 4 }}>
+                <div className="template-name">{template.name}</div>
+                <div className="template-meta">
+                  <span className="badge-type">
+                    {CONTENT_TYPE_LABELS[template.content_type] || template.content_type}
+                  </span>
+                  {template.has_custom_emoji && (
+                    <span className="badge-emoji">🎬 {template.custom_emoji_count} animado(s)</span>
+                  )}
+                </div>
+                {template.content_type === 'photo' && template.media_url && (
+                  <img src={template.media_url} alt="" className="template-thumb" />
+                )}
+                <div className="template-text">
+                  <EntityPreview text={template.text_content} entities={template.entities_json} />
+                </div>
+              </div>
+            )}
+            <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+              O texto/legenda e os emojis animados vêm do template e não podem ser editados aqui
+              (recapture no Telegram se precisar mudar).
+            </div>
+          </div>
+
+          {/* Experts (múltiplos) */}
+          <div className="step">
+            <div className="step-title">Enviar pelos experts</div>
+            <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>
+              Cada expert envia pelo seu próprio bot, para seus chats ativos.
+            </div>
+            {expertsList.map((e) => (
+              <label key={e.id} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={selectedExperts.includes(String(e.id))}
+                  onChange={() => toggleExpert(String(e.id))}
+                />
+                <span>
+                  {e.name} {e.active ? '' : '(inativo)'}
+                </span>
+              </label>
+            ))}
+            {errors.expert && <div className="field-error">{errors.expert}</div>}
+          </div>
+
+          {/* Quando */}
+          <div className="step">
+            <div className="step-title">Quando enviar</div>
+            <div className="form-group">
+              <label>Repetição</label>
+              <select
+                className="form-control"
+                value={recurrence}
+                onChange={(ev) => setRecurrence(ev.target.value)}
+              >
+                <option value="none">Envio único</option>
+                <option value="daily">Todos os dias (no horário definido)</option>
+              </select>
+            </div>
+            {recurrence === 'none' && (
+              <label className="checkbox-row">
+                <input type="checkbox" checked={sendNow} onChange={(ev) => setSendNow(ev.target.checked)} />
+                Enviar agora
+              </label>
+            )}
+            {(recurrence === 'daily' || !sendNow) && (
+              <div className="form-group">
+                <label>
+                  {recurrence === 'daily' ? 'Primeiro envio (e horário diário)' : 'Data e hora do envio'}
+                </label>
+                <input
+                  type="datetime-local"
+                  className="form-control"
+                  value={scheduledAt}
+                  onChange={(ev) => setScheduledAt(ev.target.value)}
+                />
+                {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
+              </div>
+            )}
+          </div>
+
+          <div className="form-actions">
+            <button className="btn btn-primary" disabled={submitting} onClick={() => submitTemplate(false)}>
+              {submitting ? 'Salvando...' : recurrence === 'daily' ? 'Salvar agendamento diário' : 'Salvar agendamento'}
+            </button>
+            {recurrence === 'none' && (
+              <button className="btn" disabled={submitting} onClick={() => submitTemplate(true)}>
+                Enviar agora
+              </button>
+            )}
+            <button className="btn" disabled={submitting} onClick={() => navigate('/templates')}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const selectedExpert = expertsList.find((e) => String(e.id) === String(expertId));
 

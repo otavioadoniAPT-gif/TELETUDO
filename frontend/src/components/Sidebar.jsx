@@ -4,6 +4,7 @@ const LINKS = [
   { to: '/', label: 'Resumo', icon: '▦', end: true },
   { to: '/experts', label: 'Experts', icon: '👥' },
   { to: '/schedule/new', label: 'Novo Agendamento', icon: '✉️' },
+  { to: '/templates', label: 'Templates', icon: '🎬' },
   { to: '/history', label: 'Histórico', icon: '🕑' },
 ];
 

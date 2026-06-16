@@ -7,6 +7,7 @@ import ExpertForm from './pages/ExpertForm.jsx';
 import ExpertDetail from './pages/ExpertDetail.jsx';
 import ScheduleNew from './pages/ScheduleNew.jsx';
 import History from './pages/History.jsx';
+import Templates from './pages/Templates.jsx';
 import Profile from './pages/Profile.jsx';
 import Login from './pages/Login.jsx';
 import Spinner from './components/Spinner.jsx';
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/experts/:id" element={<ExpertDetail />} />
           <Route path="/schedule/new" element={<ScheduleNew />} />
           <Route path="/history" element={<History />} />
+          <Route path="/templates" element={<Templates />} />
           <Route path="/perfil" element={<Profile />} />
           <Route path="*" element={<div className="empty-state">Página não encontrada.</div>} />
         </Routes>

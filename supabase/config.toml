@@ -7,3 +7,8 @@ project_id = "gcvrwccjoddyuorksbwa"
 # Por isso desligamos a verificação automática de JWT do gateway.
 [functions.telegram]
 verify_jwt = false
+
+# Webhook do bot de captura: validamos o secret_token do Telegram dentro
+# da função, então o gateway não precisa exigir JWT.
+[functions.capture]
+verify_jwt = false

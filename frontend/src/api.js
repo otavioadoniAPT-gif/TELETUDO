@@ -30,6 +30,25 @@ function dayEnd(date) {
 
 const SELECT_WITH_EXPERT = '*, expert:experts(id, name, avatar_url)';
 
+// URL pública de um arquivo no bucket "media"
+export function mediaUrl(path) {
+  return path ? `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/${MEDIA_BUCKET}/${path}` : null;
+}
+
+function customEmojiCount(entities) {
+  return Array.isArray(entities) ? entities.filter((e) => e.type === 'custom_emoji').length : 0;
+}
+
+function decorateTemplate(t) {
+  const count = customEmojiCount(t.entities_json);
+  return {
+    ...t,
+    custom_emoji_count: count,
+    has_custom_emoji: count > 0,
+    media_url: t.file_path ? mediaUrl(t.file_path) : null,
+  };
+}
+
 // ---------------- Experts ----------------
 export const experts = {
   async list() {
@@ -159,6 +178,18 @@ export const messages = {
     const content_type = f('content_type');
     if (!expert_id) throw new Error('expert_id é obrigatório.');
 
+    // Modo template: o conteúdo vem do message_templates (fonte única).
+    const template_id = f('template_id');
+    let tplSnapshot = null;
+    if (template_id) {
+      const { data: tpl, error: tErr } = await supabase
+        .from('message_templates')
+        .select('content_type, text_content, entities_json')
+        .eq('id', template_id).single();
+      check(tErr, 'Template não encontrado.');
+      tplSnapshot = tpl;
+    }
+
     const recurrence = f('recurrence') === 'daily' ? 'daily' : 'none';
     const parseModeRaw = f('parse_mode');
     const parse_mode = ['Markdown', 'HTML'].includes(parseModeRaw) ? parseModeRaw : 'none';
@@ -194,8 +225,10 @@ export const messages = {
 
     const row = {
       expert_id,
-      content_type,
-      text_content: f('text_content'),
+      template_id: template_id || null,
+      content_type: tplSnapshot ? tplSnapshot.content_type : content_type,
+      text_content: tplSnapshot ? tplSnapshot.text_content : f('text_content'),
+      entities_json: tplSnapshot ? tplSnapshot.entities_json : null,
       file_path,
       file_name,
       link_url: f('link_url'),
@@ -279,6 +312,51 @@ export const dashboard = {
         expert_avatar: m.expert?.avatar_url || null,
       })),
     };
+  },
+};
+
+// ---------------- Templates ----------------
+export const templates = {
+  async list() {
+    const { data, error } = await supabase
+      .from('message_templates').select('*')
+      .eq('status', 'salvo').order('created_at', { ascending: false });
+    check(error);
+    return data.map(decorateTemplate);
+  },
+  async drafts() {
+    const { data, error } = await supabase
+      .from('message_templates').select('*')
+      .eq('status', 'rascunho').order('created_at', { ascending: false });
+    check(error);
+    return data.map(decorateTemplate);
+  },
+  async get(id) {
+    const { data, error } = await supabase
+      .from('message_templates').select('*').eq('id', id).single();
+    check(error, 'Template não encontrado.');
+    return decorateTemplate(data);
+  },
+  // Nomear um rascunho o promove a "salvo"; renomear um salvo mantém salvo.
+  async rename(id, name) {
+    const clean = (name || '').trim();
+    if (!clean) throw new Error('Informe um nome para o template.');
+    const { data, error } = await supabase
+      .from('message_templates').update({ name: clean, status: 'salvo' })
+      .eq('id', id).select('*').single();
+    check(error);
+    return decorateTemplate(data);
+  },
+  async remove(id) {
+    const { data: tpl, error: gErr } = await supabase
+      .from('message_templates').select('file_path').eq('id', id).single();
+    check(gErr, 'Template não encontrado.');
+    if (tpl.file_path) {
+      await supabase.storage.from(MEDIA_BUCKET).remove([tpl.file_path]);
+    }
+    const { error } = await supabase.from('message_templates').delete().eq('id', id);
+    check(error);
+    return { id: Number(id) };
   },
 };
 
