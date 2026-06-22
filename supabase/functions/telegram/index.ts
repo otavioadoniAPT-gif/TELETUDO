@@ -247,6 +247,44 @@ async function processDueMessages() {
   return results;
 }
 
+// Apaga mensagens já concluídas (sent/failed) com mais de 24h, junto com a
+// mídia órfã no Storage. Mantém pendentes e arquivos ainda referenciados.
+const RETENTION_HOURS = 24;
+async function cleanupOldMessages() {
+  const cutoffMs = Date.now() - RETENTION_HOURS * 3600 * 1000;
+  const { data: rows } = await admin
+    .from("scheduled_messages")
+    .select("id, file_path, sent_at, scheduled_at, created_at")
+    .neq("status", "pending");
+
+  const toDelete = (rows ?? []).filter((r) => {
+    const ref = r.sent_at || r.scheduled_at || r.created_at;
+    return ref && new Date(ref).getTime() < cutoffMs;
+  });
+  if (toDelete.length === 0) return { deleted: 0, files: 0 };
+
+  const ids = toDelete.map((r) => r.id);
+  const filePaths = [...new Set(toDelete.filter((r) => r.file_path).map((r) => r.file_path))];
+
+  // Remove arquivos que não são mais usados por outra mensagem nem por template.
+  let filesRemoved = 0;
+  for (const fp of filePaths) {
+    const { count: msgRefs } = await admin
+      .from("scheduled_messages").select("id", { count: "exact", head: true })
+      .eq("file_path", fp).not("id", "in", `(${ids.join(",")})`);
+    const { count: tplRefs } = await admin
+      .from("message_templates").select("id", { count: "exact", head: true })
+      .eq("file_path", fp);
+    if (!msgRefs && !tplRefs) {
+      await admin.storage.from("media").remove([fp]);
+      filesRemoved++;
+    }
+  }
+
+  await admin.from("scheduled_messages").delete().in("id", ids);
+  return { deleted: ids.length, files: filesRemoved };
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -269,6 +307,14 @@ Deno.serve(async (req) => {
       }
       const results = await processDueMessages();
       return json({ success: true, processed: results.length, results });
+    }
+
+    if (action === "cleanup") {
+      if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
+        return json({ success: false, error: "Não autorizado." }, 401);
+      }
+      const r = await cleanupOldMessages();
+      return json({ success: true, ...r });
     }
 
     // send-now / test exigem usuário autenticado

@@ -77,7 +77,9 @@ export default function History() {
       <div className="page-header">
         <div>
           <h1>Histórico de Envios</h1>
-          <p className="page-subtitle">{pagination.total} registro(s)</p>
+          <p className="page-subtitle">
+            {pagination.total} registro(s) · mensagens concluídas são apagadas após 24h
+          </p>
         </div>
       </div>
 
