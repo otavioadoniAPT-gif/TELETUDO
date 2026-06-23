@@ -271,6 +271,28 @@ export const messages = {
     if (payload.error_message !== undefined) patch.error_message = payload.error_message;
     ['text_content', 'link_url', 'link_preview_title', 'link_preview_description', 'sticker_id']
       .forEach((k) => { if (payload[k] !== undefined) patch[k] = payload[k]; });
+
+    // Troca de mídia: sobe o novo arquivo e remove o antigo (se não usado em outro lugar)
+    if (payload.file && typeof payload.file === 'object' && payload.file.size) {
+      const { data: cur } = await supabase
+        .from('scheduled_messages').select('expert_id, file_path').eq('id', id).single();
+      const safe = payload.file.name.replace(/[^\w.\-]+/g, '_');
+      const path = `${cur?.expert_id || 'x'}/${crypto.randomUUID()}-${safe}`;
+      const { error: upErr } = await supabase.storage.from(MEDIA_BUCKET)
+        .upload(path, payload.file, { contentType: payload.file.type || undefined });
+      check(upErr, 'Falha ao enviar o arquivo.');
+      patch.file_path = path;
+      patch.file_name = payload.file.name;
+      if (cur?.file_path && cur.file_path !== path) {
+        const { count: msgRefs } = await supabase
+          .from('scheduled_messages').select('id', { count: 'exact', head: true })
+          .eq('file_path', cur.file_path).neq('id', id);
+        const { count: tplRefs } = await supabase
+          .from('message_templates').select('id', { count: 'exact', head: true })
+          .eq('file_path', cur.file_path);
+        if (!msgRefs && !tplRefs) await supabase.storage.from(MEDIA_BUCKET).remove([cur.file_path]);
+      }
+    }
     const { data, error } = await supabase
       .from('scheduled_messages').update(patch).eq('id', id).select(SELECT_WITH_EXPERT).single();
     check(error);

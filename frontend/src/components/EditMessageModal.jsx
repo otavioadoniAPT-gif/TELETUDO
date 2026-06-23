@@ -17,9 +17,12 @@ export default function EditMessageModal({ message, onClose, onSaved }) {
   const [linkDesc, setLinkDesc] = useState(message.link_preview_description || '');
   const [stickerId, setStickerId] = useState(message.sticker_id || '');
   const [when, setWhen] = useState(toLocalInput(message.scheduled_at));
+  const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const textLabel = ['photo', 'video', 'document'].includes(ct) ? 'Legenda' : 'Texto';
+  const isMedia = ['photo', 'video', 'document'].includes(ct);
+  const textLabel = isMedia ? 'Legenda' : 'Texto';
+  const fileAccept = { photo: 'image/*', video: 'video/*', document: '*' }[ct] || '*';
 
   async function save() {
     if (!isTemplate && ct === 'link' && !linkUrl.trim()) {
@@ -40,6 +43,7 @@ export default function EditMessageModal({ message, onClose, onSaved }) {
           patch.sticker_id = stickerId.trim();
         } else {
           patch.text_content = text || null;
+          if (isMedia && file) patch.file = file;
         }
       }
       await messagesApi.update(message.id, patch);
@@ -94,6 +98,21 @@ export default function EditMessageModal({ message, onClose, onSaved }) {
         <div className="form-group">
           <label>{textLabel}</label>
           <textarea className="form-control" value={text} onChange={(e) => setText(e.target.value)} />
+        </div>
+      )}
+
+      {!isTemplate && isMedia && (
+        <div className="form-group">
+          <label>Substituir arquivo (opcional)</label>
+          <input
+            type="file"
+            className="form-control"
+            accept={fileAccept}
+            onChange={(e) => setFile(e.target.files[0] || null)}
+          />
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            {file ? `Novo: ${file.name}` : `Atual: ${message.file_name || '—'} (deixe vazio para manter)`}
+          </div>
         </div>
       )}
 
