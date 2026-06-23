@@ -269,6 +269,8 @@ export const messages = {
     if (payload.scheduled_at !== undefined) patch.scheduled_at = toIso(payload.scheduled_at);
     if (payload.status !== undefined) patch.status = payload.status;
     if (payload.error_message !== undefined) patch.error_message = payload.error_message;
+    ['text_content', 'link_url', 'link_preview_title', 'link_preview_description', 'sticker_id']
+      .forEach((k) => { if (payload[k] !== undefined) patch[k] = payload[k]; });
     const { data, error } = await supabase
       .from('scheduled_messages').update(patch).eq('id', id).select(SELECT_WITH_EXPERT).single();
     check(error);

@@ -5,13 +5,13 @@ import { useToast } from '../components/Toast.jsx';
 import Avatar from '../components/Avatar.jsx';
 import Badge from '../components/Badge.jsx';
 import Spinner from '../components/Spinner.jsx';
-import RescheduleModal from '../components/RescheduleModal.jsx';
+import EditMessageModal from '../components/EditMessageModal.jsx';
 import { CONTENT_TYPE_LABELS, formatDateTime } from '../utils.js';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [reschedule, setReschedule] = useState(null);
+  const [editMsg, setEditMsg] = useState(null);
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -122,10 +122,10 @@ export default function Dashboard() {
                     <div className="row-actions">
                       <button
                         className="btn btn-sm"
-                        title="Reagendar"
-                        onClick={() => setReschedule(m)}
+                        title="Editar"
+                        onClick={() => setEditMsg(m)}
                       >
-                        ✏️ Reagendar
+                        ✏️ Editar
                       </button>
                       <button
                         className="btn btn-sm btn-danger"
@@ -143,10 +143,10 @@ export default function Dashboard() {
         )}
       </div>
 
-      {reschedule && (
-        <RescheduleModal
-          message={reschedule}
-          onClose={() => setReschedule(null)}
+      {editMsg && (
+        <EditMessageModal
+          message={editMsg}
+          onClose={() => setEditMsg(null)}
           onSaved={load}
         />
       )}

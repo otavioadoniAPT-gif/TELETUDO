@@ -6,6 +6,7 @@ import Badge from '../components/Badge.jsx';
 import Spinner from '../components/Spinner.jsx';
 import Modal from '../components/Modal.jsx';
 import RescheduleModal from '../components/RescheduleModal.jsx';
+import EditMessageModal from '../components/EditMessageModal.jsx';
 import { CONTENT_TYPE_LABELS, formatDateTime, contentPreview, truncate, WEEKDAY_LABELS } from '../utils.js';
 
 export default function History() {
@@ -16,6 +17,7 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [errorModal, setErrorModal] = useState(null);
   const [reschedule, setReschedule] = useState(null);
+  const [editMsg, setEditMsg] = useState(null);
 
   async function handleDelete(m, e) {
     e.stopPropagation();
@@ -210,13 +212,14 @@ export default function History() {
                       <div className="row-actions">
                         <button
                           className="btn btn-sm"
-                          title={m.status === 'failed' ? 'Reenviar' : 'Reagendar'}
+                          title={m.status === 'failed' ? 'Reenviar' : 'Editar'}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setReschedule(m);
+                            if (m.status === 'failed') setReschedule(m);
+                            else setEditMsg(m);
                           }}
                         >
-                          {m.status === 'failed' ? '🔄 Reenviar' : '✏️ Reagendar'}
+                          {m.status === 'failed' ? '🔄 Reenviar' : '✏️ Editar'}
                         </button>
                         <button
                           className="btn btn-sm btn-danger"
@@ -279,6 +282,14 @@ export default function History() {
         <RescheduleModal
           message={reschedule}
           onClose={() => setReschedule(null)}
+          onSaved={load}
+        />
+      )}
+
+      {editMsg && (
+        <EditMessageModal
+          message={editMsg}
+          onClose={() => setEditMsg(null)}
           onSaved={load}
         />
       )}
