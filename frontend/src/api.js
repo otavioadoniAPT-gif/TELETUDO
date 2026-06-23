@@ -191,13 +191,13 @@ export const messages = {
     }
 
     const recRaw = f('recurrence');
-    const recurrence = ['daily', 'monthdays'].includes(recRaw) ? recRaw : 'none';
+    const recurrence = ['daily', 'monthdays', 'weekdays'].includes(recRaw) ? recRaw : 'none';
     let recurrence_days = null;
-    if (recurrence === 'monthdays') {
+    if (recurrence === 'monthdays' || recurrence === 'weekdays') {
       const rd = formData.get('recurrence_days');
       try {
         const parsed = typeof rd === 'string' ? JSON.parse(rd) : rd;
-        if (Array.isArray(parsed)) recurrence_days = parsed.map(Number).filter((n) => n >= 1 && n <= 31);
+        if (Array.isArray(parsed)) recurrence_days = parsed.map(Number).filter((n) => n >= 0 && n <= 31);
       } catch (_) {
         recurrence_days = null;
       }

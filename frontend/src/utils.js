@@ -104,6 +104,25 @@ export function firstMonthdayOccurrence(days, time) {
   return '';
 }
 
+export const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+// Próxima ocorrência futura dado um conjunto de dias da semana (0=Dom..6=Sáb)
+// e um horário "HH:MM". Retorna no formato datetime-local local.
+export function firstWeekdayOccurrence(weekdays, time) {
+  if (!weekdays || !weekdays.length || !time) return '';
+  const [h, m] = time.split(':').map(Number);
+  const set = [...new Set(weekdays)];
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  for (let i = 0; i <= 7; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, h, m, 0, 0);
+    if (d.getTime() > now.getTime() && set.includes(d.getDay())) {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(h)}:${pad(m)}`;
+    }
+  }
+  return '';
+}
+
 export function truncate(str = '', n = 60) {
   return str.length > n ? str.slice(0, n) + '…' : str;
 }

@@ -215,7 +215,24 @@ function nextMonthdayDate(currentUtc: Date, days: number[]): Date | null {
   return null;
 }
 
-// Cria a próxima ocorrência de uma mensagem recorrente (daily ou monthdays).
+// Próxima ocorrência por dia da semana (0=Dom .. 6=Sáb), no horário local (BRT).
+function nextWeekdayDate(currentUtc: Date, weekdays: number[]): Date | null {
+  const set = [...new Set(weekdays)].filter((d) => d >= 0 && d <= 6);
+  if (!set.length) return null;
+  const local = new Date(currentUtc.getTime() + BRT_OFFSET_MS);
+  const h = local.getUTCHours();
+  const min = local.getUTCMinutes();
+  for (let i = 1; i <= 7; i++) {
+    const cand = new Date(
+      Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + i, h, min) - BRT_OFFSET_MS,
+    );
+    const candLocal = new Date(cand.getTime() + BRT_OFFSET_MS);
+    if (set.includes(candLocal.getUTCDay())) return cand;
+  }
+  return null;
+}
+
+// Cria a próxima ocorrência de uma mensagem recorrente (daily, monthdays ou weekdays).
 async function scheduleNextOccurrence(message: any) {
   if (!message.scheduled_at) return;
   let next: Date | null = null;
@@ -223,6 +240,8 @@ async function scheduleNextOccurrence(message: any) {
     next = new Date(new Date(message.scheduled_at).getTime() + 24 * 3600 * 1000);
   } else if (message.recurrence === "monthdays" && Array.isArray(message.recurrence_days)) {
     next = nextMonthdayDate(new Date(message.scheduled_at), message.recurrence_days);
+  } else if (message.recurrence === "weekdays" && Array.isArray(message.recurrence_days)) {
+    next = nextWeekdayDate(new Date(message.scheduled_at), message.recurrence_days);
   }
   if (!next) return;
   await admin.from("scheduled_messages").insert({

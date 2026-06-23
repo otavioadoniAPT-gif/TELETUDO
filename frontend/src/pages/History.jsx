@@ -6,7 +6,7 @@ import Badge from '../components/Badge.jsx';
 import Spinner from '../components/Spinner.jsx';
 import Modal from '../components/Modal.jsx';
 import RescheduleModal from '../components/RescheduleModal.jsx';
-import { CONTENT_TYPE_LABELS, formatDateTime, contentPreview, truncate } from '../utils.js';
+import { CONTENT_TYPE_LABELS, formatDateTime, contentPreview, truncate, WEEKDAY_LABELS } from '../utils.js';
 
 export default function History() {
   const toast = useToast();
@@ -186,6 +186,14 @@ export default function History() {
                         style={{ marginLeft: 6 }}
                       >
                         🗓️
+                      </span>
+                    )}
+                    {m.recurrence === 'weekdays' && (
+                      <span
+                        title={`Repete: ${(m.recurrence_days || []).map((d) => WEEKDAY_LABELS[d]).join(', ')}`}
+                        style={{ marginLeft: 6 }}
+                      >
+                        📆
                       </span>
                     )}
                   </td>

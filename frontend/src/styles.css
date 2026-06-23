@@ -1200,3 +1200,11 @@ textarea.form-control {
   color: #fff;
   font-weight: 600;
 }
+
+/* ---- Seletor de dias da semana ---- */
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}

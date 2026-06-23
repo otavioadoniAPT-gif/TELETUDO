@@ -6,7 +6,8 @@ import Avatar from '../components/Avatar.jsx';
 import Spinner from '../components/Spinner.jsx';
 import EntityPreview from '../components/EntityPreview.jsx';
 import MonthDaysPicker from '../components/MonthDaysPicker.jsx';
-import { CONTENT_TYPE_LABELS, firstMonthdayOccurrence } from '../utils.js';
+import WeekDaysPicker from '../components/WeekDaysPicker.jsx';
+import { CONTENT_TYPE_LABELS, firstMonthdayOccurrence, firstWeekdayOccurrence } from '../utils.js';
 
 const TYPES = ['text', 'photo', 'video', 'document', 'link', 'sticker'];
 const FILE_TYPES = { photo: 'image/*', video: 'video/*', document: '*' };
@@ -38,6 +39,8 @@ export default function ScheduleNew() {
   const [recurrence, setRecurrence] = useState('none');
   const [monthDays, setMonthDays] = useState([]);
   const [monthTime, setMonthTime] = useState('');
+  const [weekDays, setWeekDays] = useState([]);
+  const [weekTime, setWeekTime] = useState('');
 
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -86,6 +89,9 @@ export default function ScheduleNew() {
     if (recurrence === 'monthdays') {
       if (monthDays.length === 0) e.scheduled = 'Selecione ao menos um dia do mês.';
       else if (!monthTime) e.scheduled = 'Defina o horário do envio.';
+    } else if (recurrence === 'weekdays') {
+      if (weekDays.length === 0) e.scheduled = 'Selecione ao menos um dia da semana.';
+      else if (!weekTime) e.scheduled = 'Defina o horário do envio.';
     } else if (recurrence === 'daily' && !scheduledAt)
       e.scheduled = 'Para repetir diariamente, defina a data/hora do primeiro envio.';
     else if (!willNow && !sendNow && !scheduledAt)
@@ -94,13 +100,15 @@ export default function ScheduleNew() {
     if (Object.keys(e).length) return;
 
     const isNow = recurrence === 'none' && (willNow || sendNow);
-    let monthFirst = '';
+    let recFirst = '';
     if (recurrence === 'monthdays') {
-      monthFirst = firstMonthdayOccurrence(monthDays, monthTime);
-      if (!monthFirst) {
-        setErrors({ scheduled: 'Não foi possível calcular a próxima data.' });
-        return;
-      }
+      recFirst = firstMonthdayOccurrence(monthDays, monthTime);
+    } else if (recurrence === 'weekdays') {
+      recFirst = firstWeekdayOccurrence(weekDays, weekTime);
+    }
+    if ((recurrence === 'monthdays' || recurrence === 'weekdays') && !recFirst) {
+      setErrors({ scheduled: 'Não foi possível calcular a próxima data.' });
+      return;
     }
     setSubmitting(true);
     try {
@@ -117,10 +125,11 @@ export default function ScheduleNew() {
         fd.append('template_id', templateId);
         fd.append('target_chats', JSON.stringify(chatIds));
         fd.append('recurrence', recurrence);
-        if (recurrence === 'monthdays') {
+        if (recurrence === 'monthdays' || recurrence === 'weekdays') {
+          const days = recurrence === 'monthdays' ? monthDays : weekDays;
           fd.append('send_now', 'false');
-          fd.append('recurrence_days', JSON.stringify([...monthDays].sort((a, b) => a - b)));
-          fd.append('scheduled_at', monthFirst);
+          fd.append('recurrence_days', JSON.stringify([...days].sort((a, b) => a - b)));
+          fd.append('scheduled_at', recFirst);
         } else {
           fd.append('send_now', isNow ? 'true' : 'false');
           if (recurrence === 'daily' || !isNow) fd.append('scheduled_at', scheduledAt);
@@ -208,6 +217,9 @@ export default function ScheduleNew() {
     if (recurrence === 'monthdays') {
       if (monthDays.length === 0) e.scheduled = 'Selecione ao menos um dia do mês.';
       else if (!monthTime) e.scheduled = 'Defina o horário do envio.';
+    } else if (recurrence === 'weekdays') {
+      if (weekDays.length === 0) e.scheduled = 'Selecione ao menos um dia da semana.';
+      else if (!weekTime) e.scheduled = 'Defina o horário do envio.';
     } else if (recurrence === 'daily' && !scheduledAt)
       e.scheduled = 'Para repetir diariamente, defina a data/hora do primeiro envio.';
     else if (!willSendNow && !sendNow && !scheduledAt)
@@ -234,14 +246,18 @@ export default function ScheduleNew() {
     // "Enviar agora" só vale para envio único
     const isNow = recurrence === 'none' && (willSendNow || sendNow);
     fd.append('recurrence', recurrence);
-    if (recurrence === 'monthdays') {
-      const first = firstMonthdayOccurrence(monthDays, monthTime);
+    if (recurrence === 'monthdays' || recurrence === 'weekdays') {
+      const isMonth = recurrence === 'monthdays';
+      const days = isMonth ? monthDays : weekDays;
+      const first = isMonth
+        ? firstMonthdayOccurrence(monthDays, monthTime)
+        : firstWeekdayOccurrence(weekDays, weekTime);
       if (!first) {
         setErrors({ scheduled: 'Não foi possível calcular a próxima data.' });
         return;
       }
       fd.append('send_now', 'false');
-      fd.append('recurrence_days', JSON.stringify([...monthDays].sort((a, b) => a - b)));
+      fd.append('recurrence_days', JSON.stringify([...days].sort((a, b) => a - b)));
       fd.append('scheduled_at', first);
     } else {
       fd.append('send_now', isNow ? 'true' : 'false');
@@ -344,12 +360,18 @@ export default function ScheduleNew() {
               >
                 <option value="none">Envio único</option>
                 <option value="daily">Todos os dias (no horário definido)</option>
+                <option value="weekdays">Dias da semana</option>
                 <option value="monthdays">Dias específicos do mês</option>
               </select>
             </div>
             {recurrence === 'monthdays' ? (
               <div className="form-group">
                 <MonthDaysPicker days={monthDays} setDays={setMonthDays} time={monthTime} setTime={setMonthTime} />
+                {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
+              </div>
+            ) : recurrence === 'weekdays' ? (
+              <div className="form-group">
+                <WeekDaysPicker days={weekDays} setDays={setWeekDays} time={weekTime} setTime={setWeekTime} />
                 {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
               </div>
             ) : (
@@ -609,6 +631,7 @@ export default function ScheduleNew() {
             >
               <option value="none">Envio único</option>
               <option value="daily">Todos os dias (no horário definido)</option>
+              <option value="weekdays">Dias da semana</option>
               <option value="monthdays">Dias específicos do mês</option>
             </select>
           </div>
@@ -616,6 +639,11 @@ export default function ScheduleNew() {
           {recurrence === 'monthdays' ? (
             <div className="form-group">
               <MonthDaysPicker days={monthDays} setDays={setMonthDays} time={monthTime} setTime={setMonthTime} />
+              {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
+            </div>
+          ) : recurrence === 'weekdays' ? (
+            <div className="form-group">
+              <WeekDaysPicker days={weekDays} setDays={setWeekDays} time={weekTime} setTime={setWeekTime} />
               {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
             </div>
           ) : (
