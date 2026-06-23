@@ -5,7 +5,8 @@ import { useToast } from '../components/Toast.jsx';
 import Avatar from '../components/Avatar.jsx';
 import Spinner from '../components/Spinner.jsx';
 import EntityPreview from '../components/EntityPreview.jsx';
-import { CONTENT_TYPE_LABELS } from '../utils.js';
+import MonthDaysPicker from '../components/MonthDaysPicker.jsx';
+import { CONTENT_TYPE_LABELS, firstMonthdayOccurrence } from '../utils.js';
 
 const TYPES = ['text', 'photo', 'video', 'document', 'link', 'sticker'];
 const FILE_TYPES = { photo: 'image/*', video: 'video/*', document: '*' };
@@ -35,6 +36,8 @@ export default function ScheduleNew() {
   const [scheduledAt, setScheduledAt] = useState('');
   const [sendNow, setSendNow] = useState(false);
   const [recurrence, setRecurrence] = useState('none');
+  const [monthDays, setMonthDays] = useState([]);
+  const [monthTime, setMonthTime] = useState('');
 
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -80,14 +83,25 @@ export default function ScheduleNew() {
     const willNow = now === true;
     const e = {};
     if (selectedExperts.length === 0) e.expert = 'Selecione ao menos um expert.';
-    if (recurrence === 'daily' && !scheduledAt)
+    if (recurrence === 'monthdays') {
+      if (monthDays.length === 0) e.scheduled = 'Selecione ao menos um dia do mês.';
+      else if (!monthTime) e.scheduled = 'Defina o horário do envio.';
+    } else if (recurrence === 'daily' && !scheduledAt)
       e.scheduled = 'Para repetir diariamente, defina a data/hora do primeiro envio.';
     else if (!willNow && !sendNow && !scheduledAt)
       e.scheduled = 'Defina a data/hora ou marque "Enviar agora".';
     setErrors(e);
     if (Object.keys(e).length) return;
 
-    const isNow = recurrence !== 'daily' && (willNow || sendNow);
+    const isNow = recurrence === 'none' && (willNow || sendNow);
+    let monthFirst = '';
+    if (recurrence === 'monthdays') {
+      monthFirst = firstMonthdayOccurrence(monthDays, monthTime);
+      if (!monthFirst) {
+        setErrors({ scheduled: 'Não foi possível calcular a próxima data.' });
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       let ok = 0;
@@ -102,9 +116,15 @@ export default function ScheduleNew() {
         fd.append('expert_id', eid);
         fd.append('template_id', templateId);
         fd.append('target_chats', JSON.stringify(chatIds));
-        fd.append('send_now', isNow ? 'true' : 'false');
         fd.append('recurrence', recurrence);
-        if (recurrence === 'daily' || !isNow) fd.append('scheduled_at', scheduledAt);
+        if (recurrence === 'monthdays') {
+          fd.append('send_now', 'false');
+          fd.append('recurrence_days', JSON.stringify([...monthDays].sort((a, b) => a - b)));
+          fd.append('scheduled_at', monthFirst);
+        } else {
+          fd.append('send_now', isNow ? 'true' : 'false');
+          if (recurrence === 'daily' || !isNow) fd.append('scheduled_at', scheduledAt);
+        }
         await messagesApi.create(fd);
         ok++;
       }
@@ -185,7 +205,10 @@ export default function ScheduleNew() {
     if (contentType === 'link' && !linkUrl.trim()) e.link = 'Informe a URL do link.';
     if (contentType === 'sticker' && !stickerId.trim())
       e.sticker = 'Informe o file_id da figurinha.';
-    if (recurrence === 'daily' && !scheduledAt)
+    if (recurrence === 'monthdays') {
+      if (monthDays.length === 0) e.scheduled = 'Selecione ao menos um dia do mês.';
+      else if (!monthTime) e.scheduled = 'Defina o horário do envio.';
+    } else if (recurrence === 'daily' && !scheduledAt)
       e.scheduled = 'Para repetir diariamente, defina a data/hora do primeiro envio.';
     else if (!willSendNow && !sendNow && !scheduledAt)
       e.scheduled = 'Defina a data/hora ou marque "Enviar agora".';
@@ -208,14 +231,22 @@ export default function ScheduleNew() {
     if (['text', 'photo', 'video', 'document'].includes(contentType)) {
       fd.append('parse_mode', parseMode);
     }
-    // Em recorrência diária sempre usamos a data base (não envia "agora")
-    const isNow = recurrence !== 'daily' && (willSendNow || sendNow);
-    fd.append('send_now', isNow ? 'true' : 'false');
+    // "Enviar agora" só vale para envio único
+    const isNow = recurrence === 'none' && (willSendNow || sendNow);
     fd.append('recurrence', recurrence);
-    if (recurrence === 'daily' || !isNow) {
-      // Envia o valor cru do datetime-local (horário local); a conversão
-      // para UTC é feita uma única vez no api.js (toIso).
-      fd.append('scheduled_at', scheduledAt);
+    if (recurrence === 'monthdays') {
+      const first = firstMonthdayOccurrence(monthDays, monthTime);
+      if (!first) {
+        setErrors({ scheduled: 'Não foi possível calcular a próxima data.' });
+        return;
+      }
+      fd.append('send_now', 'false');
+      fd.append('recurrence_days', JSON.stringify([...monthDays].sort((a, b) => a - b)));
+      fd.append('scheduled_at', first);
+    } else {
+      fd.append('send_now', isNow ? 'true' : 'false');
+      // Envia o valor cru do datetime-local; a conversão p/ UTC é no api.js.
+      if (recurrence === 'daily' || !isNow) fd.append('scheduled_at', scheduledAt);
     }
 
     setSubmitting(true);
@@ -313,27 +344,37 @@ export default function ScheduleNew() {
               >
                 <option value="none">Envio único</option>
                 <option value="daily">Todos os dias (no horário definido)</option>
+                <option value="monthdays">Dias específicos do mês</option>
               </select>
             </div>
-            {recurrence === 'none' && (
-              <label className="checkbox-row">
-                <input type="checkbox" checked={sendNow} onChange={(ev) => setSendNow(ev.target.checked)} />
-                Enviar agora
-              </label>
-            )}
-            {(recurrence === 'daily' || !sendNow) && (
+            {recurrence === 'monthdays' ? (
               <div className="form-group">
-                <label>
-                  {recurrence === 'daily' ? 'Primeiro envio (e horário diário)' : 'Data e hora do envio'}
-                </label>
-                <input
-                  type="datetime-local"
-                  className="form-control"
-                  value={scheduledAt}
-                  onChange={(ev) => setScheduledAt(ev.target.value)}
-                />
+                <MonthDaysPicker days={monthDays} setDays={setMonthDays} time={monthTime} setTime={setMonthTime} />
                 {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
               </div>
+            ) : (
+              <>
+                {recurrence === 'none' && (
+                  <label className="checkbox-row">
+                    <input type="checkbox" checked={sendNow} onChange={(ev) => setSendNow(ev.target.checked)} />
+                    Enviar agora
+                  </label>
+                )}
+                {(recurrence === 'daily' || !sendNow) && (
+                  <div className="form-group">
+                    <label>
+                      {recurrence === 'daily' ? 'Primeiro envio (e horário diário)' : 'Data e hora do envio'}
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className="form-control"
+                      value={scheduledAt}
+                      onChange={(ev) => setScheduledAt(ev.target.value)}
+                    />
+                    {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -568,37 +609,47 @@ export default function ScheduleNew() {
             >
               <option value="none">Envio único</option>
               <option value="daily">Todos os dias (no horário definido)</option>
+              <option value="monthdays">Dias específicos do mês</option>
             </select>
           </div>
 
-          {recurrence === 'none' && (
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={sendNow}
-                onChange={(e) => setSendNow(e.target.checked)}
-              />
-              Enviar agora
-            </label>
-          )}
-          {(recurrence === 'daily' || !sendNow) && (
+          {recurrence === 'monthdays' ? (
             <div className="form-group">
-              <label>
-                {recurrence === 'daily' ? 'Primeiro envio (e horário diário)' : 'Data e hora do envio'}
-              </label>
-              <input
-                type="datetime-local"
-                className="form-control"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-              />
-              {recurrence === 'daily' && (
-                <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
-                  A mensagem será reenviada automaticamente todos os dias neste horário.
-                </div>
-              )}
+              <MonthDaysPicker days={monthDays} setDays={setMonthDays} time={monthTime} setTime={setMonthTime} />
               {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
             </div>
+          ) : (
+            <>
+              {recurrence === 'none' && (
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={sendNow}
+                    onChange={(e) => setSendNow(e.target.checked)}
+                  />
+                  Enviar agora
+                </label>
+              )}
+              {(recurrence === 'daily' || !sendNow) && (
+                <div className="form-group">
+                  <label>
+                    {recurrence === 'daily' ? 'Primeiro envio (e horário diário)' : 'Data e hora do envio'}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="form-control"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                  />
+                  {recurrence === 'daily' && (
+                    <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+                      A mensagem será reenviada automaticamente todos os dias neste horário.
+                    </div>
+                  )}
+                  {errors.scheduled && <div className="field-error">{errors.scheduled}</div>}
+                </div>
+              )}
+            </>
           )}
         </div>
 

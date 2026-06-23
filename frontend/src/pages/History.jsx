@@ -180,6 +180,14 @@ export default function History() {
                         🔁
                       </span>
                     )}
+                    {m.recurrence === 'monthdays' && (
+                      <span
+                        title={`Repete nos dias do mês: ${(m.recurrence_days || []).join(', ')}`}
+                        style={{ marginLeft: 6 }}
+                      >
+                        🗓️
+                      </span>
+                    )}
                   </td>
                   <td className="muted">{truncate(contentPreview(m), 50)}</td>
                   <td>{formatDateTime(m.scheduled_at)}</td>

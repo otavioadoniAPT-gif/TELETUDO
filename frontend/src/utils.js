@@ -79,6 +79,31 @@ export function previewSegments(text = '', entities = []) {
   return segs;
 }
 
+// Dada uma lista de dias do mês e um horário "HH:MM", retorna a próxima
+// ocorrência futura no formato do datetime-local ("YYYY-MM-DDTHH:MM"), local.
+export function firstMonthdayOccurrence(days, time) {
+  if (!days || !days.length || !time) return '';
+  const [h, m] = time.split(':').map(Number);
+  const sorted = [...new Set(days)].filter((d) => d >= 1 && d <= 31).sort((a, b) => a - b);
+  const now = new Date();
+  let y = now.getFullYear();
+  let mo = now.getMonth();
+  const pad = (n) => String(n).padStart(2, '0');
+  for (let i = 0; i < 14; i++) {
+    const dim = new Date(y, mo + 1, 0).getDate();
+    for (const d of sorted) {
+      if (d > dim) continue;
+      const cand = new Date(y, mo, d, h, m, 0, 0);
+      if (cand.getTime() > now.getTime()) {
+        return `${cand.getFullYear()}-${pad(cand.getMonth() + 1)}-${pad(cand.getDate())}T${pad(h)}:${pad(m)}`;
+      }
+    }
+    mo++;
+    if (mo > 11) { mo = 0; y++; }
+  }
+  return '';
+}
+
 export function truncate(str = '', n = 60) {
   return str.length > n ? str.slice(0, n) + '…' : str;
 }

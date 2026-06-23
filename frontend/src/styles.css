@@ -1173,3 +1173,30 @@ textarea.form-control {
   padding: 0 4px;
   margin: 0 1px;
 }
+
+/* ---- Seletor de dias do mês ---- */
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.day-cell {
+  padding: 8px 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text, #e8eaf2);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.12s;
+}
+.day-cell:hover {
+  border-color: var(--accent, #2b4cff);
+}
+.day-cell.sel {
+  background: var(--accent, #2b4cff);
+  border-color: var(--accent, #2b4cff);
+  color: #fff;
+  font-weight: 600;
+}

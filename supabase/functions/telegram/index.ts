@@ -189,14 +189,48 @@ async function processMessage(message: any) {
   if (errors.length > 0) throw new Error(errors.join(" | "));
 }
 
-// Cria a próxima ocorrência diária de uma mensagem recorrente.
+// Brasil é UTC-3 fixo (sem horário de verão) — usado para calcular "dia do mês".
+const BRT_OFFSET_MS = -3 * 3600 * 1000;
+
+// Próxima ocorrência de uma recorrência por dias do mês, no horário local (BRT).
+function nextMonthdayDate(currentUtc: Date, days: number[]): Date | null {
+  const sorted = [...new Set(days)].filter((d) => d >= 1 && d <= 31).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const local = new Date(currentUtc.getTime() + BRT_OFFSET_MS); // relógio local nos campos UTC
+  const h = local.getUTCHours();
+  const min = local.getUTCMinutes();
+  let y = local.getUTCFullYear();
+  let mo = local.getUTCMonth();
+  for (let i = 0; i < 14; i++) {
+    const daysInMonth = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    for (const d of sorted) {
+      if (d > daysInMonth) continue;
+      // local -> UTC: UTC = local - offset (offset negativo => soma 3h)
+      const cand = new Date(Date.UTC(y, mo, d, h, min) - BRT_OFFSET_MS);
+      if (cand.getTime() > currentUtc.getTime()) return cand;
+    }
+    mo++;
+    if (mo > 11) { mo = 0; y++; }
+  }
+  return null;
+}
+
+// Cria a próxima ocorrência de uma mensagem recorrente (daily ou monthdays).
 async function scheduleNextOccurrence(message: any) {
-  if (message.recurrence !== "daily" || !message.scheduled_at) return;
-  const next = new Date(new Date(message.scheduled_at).getTime() + 24 * 60 * 60 * 1000);
+  if (!message.scheduled_at) return;
+  let next: Date | null = null;
+  if (message.recurrence === "daily") {
+    next = new Date(new Date(message.scheduled_at).getTime() + 24 * 3600 * 1000);
+  } else if (message.recurrence === "monthdays" && Array.isArray(message.recurrence_days)) {
+    next = nextMonthdayDate(new Date(message.scheduled_at), message.recurrence_days);
+  }
+  if (!next) return;
   await admin.from("scheduled_messages").insert({
     expert_id: message.expert_id,
+    template_id: message.template_id || null,
     content_type: message.content_type,
     text_content: message.text_content,
+    entities_json: message.entities_json || null,
     file_path: message.file_path,
     file_name: message.file_name,
     link_url: message.link_url,
@@ -205,7 +239,8 @@ async function scheduleNextOccurrence(message: any) {
     scheduled_at: next.toISOString(),
     status: "pending",
     target_chats: message.target_chats,
-    recurrence: "daily",
+    recurrence: message.recurrence,
+    recurrence_days: message.recurrence_days || null,
     parent_id: message.parent_id || message.id,
     parse_mode: message.parse_mode || "none",
     sticker_id: message.sticker_id || null,

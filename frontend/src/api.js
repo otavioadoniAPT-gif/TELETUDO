@@ -190,7 +190,18 @@ export const messages = {
       tplSnapshot = tpl;
     }
 
-    const recurrence = f('recurrence') === 'daily' ? 'daily' : 'none';
+    const recRaw = f('recurrence');
+    const recurrence = ['daily', 'monthdays'].includes(recRaw) ? recRaw : 'none';
+    let recurrence_days = null;
+    if (recurrence === 'monthdays') {
+      const rd = formData.get('recurrence_days');
+      try {
+        const parsed = typeof rd === 'string' ? JSON.parse(rd) : rd;
+        if (Array.isArray(parsed)) recurrence_days = parsed.map(Number).filter((n) => n >= 1 && n <= 31);
+      } catch (_) {
+        recurrence_days = null;
+      }
+    }
     const parseModeRaw = f('parse_mode');
     const parse_mode = ['Markdown', 'HTML'].includes(parseModeRaw) ? parseModeRaw : 'none';
     const sendNowRaw = formData.get('send_now');
@@ -239,6 +250,7 @@ export const messages = {
       status: 'pending',
       target_chats,
       recurrence,
+      recurrence_days,
       parse_mode,
       sticker_id: content_type === 'sticker' ? (f('sticker_id') || '').trim() : null,
     };
